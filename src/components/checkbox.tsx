@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 
 interface CustomCheckboxProps {
   checked: boolean;
-  onChange: () => void;
+  onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 const CustomCheckbox: React.FC<CustomCheckboxProps> = ({ checked, onChange }) => {
   const [isChecked, setIsChecked] = useState(checked);
 
-  const handleCheckboxChange = () => {
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setIsChecked(!isChecked);
-    onChange();
+    onChange(event);
   };
 
   return (
