@@ -1,83 +1,166 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import CustomCheckbox from '../components/checkbox'
+import { createRoot } from "react-dom/client";
+import CustomCheckbox from "./checkbox";
 
 const Editor: React.FC = () => {
-  const [items, setItems] = useState<{ text: string; checked: boolean }[]>([]);
-  const [currentInput, setCurrentInput] = useState("");
+  const [currentInput, setCurrentInput] = useState(""); // Track the current content of the editor
   const [isToDoListStarted, setIsToDoListStarted] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   // Load items from local storage on refresh
   useEffect(() => {
-    const savedItems = localStorage.getItem("todoItems");
-    if (savedItems) {
-      setItems(JSON.parse(savedItems));
-    }
+    loadFromLocalStorage();
   }, []);
 
+  const loadFromLocalStorage = () => {
+    const storedTodos = localStorage.getItem("todoItems");
+    if (storedTodos) {
+      const todos = JSON.parse(storedTodos);
+      todos.forEach((todo: { text: string; checked: boolean }) => {
+        insertTodoItem(todo); // Use the existing `insertTodoItem` to ensure React renders correctly
+      });
+    }
+  };
+
   // Save items to local storage
-  useEffect(() => {
-    localStorage.setItem("todoItems", JSON.stringify(items));
-  }, [items]);
+  const saveToLocalStorage = () => {
+    const todos = Array.from(document.querySelectorAll(".todoItem")).map((todo) => {
+      const inputField = todo.querySelector("input[type='text']") as HTMLInputElement;
+      const checkbox = todo.querySelector("input[type='checkbox']") as HTMLInputElement;
+      return {
+        text: inputField?.value || "",
+        checked: checkbox?.checked || false,
+      };
+    });
+    localStorage.setItem("todoItems", JSON.stringify(todos));
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (currentInput.trim() !== "") {
-        // Single Enter Press
-        if (editorRef.current) editorRef.current.innerHTML = "";
-        if (isToDoListStarted) {
-          setItems([...items, { text: '', checked: false }]); 
-        }
-        setCurrentInput(""); 
-      } else {
-        // Double Enter Press
-        setCurrentInput(""); 
-        setIsToDoListStarted(false);
-        // Check if the last item text is empty, if so remove it
-        setItems((prevItems) => {
-          if (prevItems.length > 0 && prevItems[prevItems.length - 1].text.trim() === "") {
-            return prevItems.slice(0, -1);
-          }
-          return prevItems;
-        });
-      }
-    } else if (e.key === " ") { 
-      if (!isToDoListStarted && currentInput.startsWith("[]")) {
+    if ((e.target as HTMLElement).tagName === "INPUT") {
+      if (e.key === "Enter") {
         e.preventDefault();
-        setIsToDoListStarted(true);
-        setCurrentInput(""); 
-        if (editorRef.current) editorRef.current.innerHTML = ""; 
-        setItems([...items, { text: "", checked: false }]); 
+        const inputElement = e.target as HTMLInputElement;
+        if (inputElement.value.trim() === "") {
+          setIsToDoListStarted(false);
+          const todoItem = inputElement.closest(".todoItem");
+          todoItem?.remove();
+          saveToLocalStorage();
+          // Move cursor to the end of the editor
+          if (editorRef.current) {
+            const range = document.createRange();
+            range.selectNodeContents(editorRef.current); // Select all editor content
+            range.collapse(false); // Collapse to the end
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+            editorRef.current.focus();
+          }
+        } else {
+          e.preventDefault(); // Prevent default Enter behavior
+
+          // Find the current to-do item's input field
+          const todoInput = e.target as HTMLInputElement;
+          const currentTodoItem = todoInput.closest('.flex.items-center');
+
+          // Insert a new to-do item after the current one
+          if (currentTodoItem && editorRef.current) {
+            const range = document.createRange();
+            range.setStartAfter(currentTodoItem);
+            range.collapse(true);
+            const selection = window.getSelection();
+            if (selection) {
+              selection.removeAllRanges();
+              selection.addRange(range);
+            }
+            insertTodoItem();
+            saveToLocalStorage();
+          }
+        }
       }
+    } else if (currentInput.endsWith("[]") && !isToDoListStarted) {
+      setIsToDoListStarted(true);
+      setCurrentInput((prev) => prev.slice(0, -2));
+      if (editorRef.current) {
+        editorRef.current.textContent = currentInput.slice(0, -2); // Update editor content
+      }
+      insertTodoItem();
+      saveToLocalStorage();
     }
   };
 
   const handleInput = () => {
     if (editorRef.current) {
-      const newInput = editorRef.current.innerHTML;
-      setCurrentInput(newInput); 
-
-      // Update on input
-      if (isToDoListStarted) {
-        setItems((prevItems) => {
-          const updatedItems = [...prevItems];
-          if (updatedItems.length > 0) {
-            updatedItems[updatedItems.length - 1].text = newInput;
-          }
-          return updatedItems;
-        });
-      }
+      setCurrentInput(editorRef.current.textContent || ""); // Update the state with the current content
     }
   };
 
-  const toggleCheck = (index: number) => {
-    setItems((prevItems) =>
-      prevItems.map((item, i) =>
-        i === index ? { ...item, checked: !item.checked } : item
-      )
-    );
+  const insertTodoItem = (todo = { text: "", checked: false }) => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      const range = document.createRange();
+      const selection = window.getSelection();
+
+      // Place the cursor at the end of the editor content
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false); // Collapse the range to the end
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      // Create todoItem container
+      const todoItemDiv = document.createElement("div");
+      todoItemDiv.className = "todoItem flex items-center";
+
+      // Create checkbox container
+      const checkboxContainer = document.createElement("div");
+      checkboxContainer.id = "custom-checkbox-container";
+
+      // Render CustomCheckbox into checkboxContainer
+      const root = createRoot(checkboxContainer);
+      root.render(
+        <CustomCheckbox
+          checked={todo.checked}
+          onChange={() => {
+            const todoItem = checkboxContainer.closest(".todoItem");
+            const inputField = todoItem?.querySelector('input[type="text"]');
+            if (todo.checked) {
+              inputField?.classList.add("line-through");
+            } else {
+              inputField?.classList.remove("line-through");
+            }
+            saveToLocalStorage();
+          }}
+        />
+      );
+
+      // Create input field
+      const inputField = document.createElement("input");
+      inputField.type = "text";
+      inputField.className =
+        "ml-2 p-1 border rounded-md focus:outline-none " + (todo.checked ? "line-through" : "");
+      inputField.value = todo.text;
+      inputField.addEventListener("input", saveToLocalStorage);
+      inputField.addEventListener("focus", function () {
+        this.setAttribute("data-text", this.value);
+      });
+
+      // Append checkbox and input field to the to-do item container
+      todoItemDiv.appendChild(checkboxContainer);
+      todoItemDiv.appendChild(inputField);
+
+      // Append the new to-do item at the end of the editor content
+      editorRef.current.appendChild(todoItemDiv);
+
+      // Place the cursor after the inserted node
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false); // Collapse to the end again
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+
+      inputField.focus();
+    }
   };
 
   // Apply formatting commands
@@ -113,30 +196,13 @@ const Editor: React.FC = () => {
 
       {/* Editable Input Area */}
       <div
+        id="editor"
         ref={editorRef}
         contentEditable
-        className="w-full px-3 py-2 border border-gray-300 rounded mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[40px]"
+        className="w-[500px] h-[100px] min-h-[200px] max-h-[400px] overflow-y-auto border border-gray-300 p-4 rounded-md focus:outline-none bg-gray-50"
         onKeyUp={handleInput}
         onKeyDown={handleKeyDown}
-      ></div>
-
-      {/* To-Do Items */}
-      <ul>
-        {items.map((item, index) => (
-          <li
-            key={index}
-            className="flex items-center mb-2 space-x-2 p-2"
-          >
-            <CustomCheckbox checked={item.checked} onChange={() => toggleCheck(index)} />
-            <span
-              className={`text-sm ${
-                item.checked ? "line-through" : ""
-              }`}
-              dangerouslySetInnerHTML={{ __html: item.text }}
-            ></span>
-          </li>
-        ))}
-      </ul>
+      />
     </div>
   );
 };

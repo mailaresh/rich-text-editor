@@ -14,15 +14,15 @@ const CustomCheckbox: React.FC<CustomCheckboxProps> = ({ checked, onChange }) =>
   };
 
   return (
-    <div className="relative flex items-center justify-center w-5 h-5 border border-gray-300">
+    <label className="relative flex items-center justify-center w-5 h-5 border border-gray-300 cursor-pointer">
       {isChecked && '✓'}
-      <input 
-        type="checkbox" 
-        className="opacity-0 absolute" 
-        checked={isChecked} 
-        onChange={handleCheckboxChange} 
+      <input
+        type="checkbox"
+        className="opacity-0 absolute pointer-events-none"
+        checked={isChecked}
+        onChange={handleCheckboxChange}
       />
-    </div>
+    </label>
   );
 };
 
